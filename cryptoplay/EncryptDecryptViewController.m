@@ -6,13 +6,13 @@
 //  Copyright © 2016 com.ensoreus. All rights reserved.
 //
 
-#import "SecondViewController.h"
+#import "EncryptDecryptViewController.h"
 
-@interface SecondViewController ()
+@interface EncryptDecryptViewController ()
 
 @end
 
-@implementation SecondViewController
+@implementation EncryptDecryptViewController
 
 - (void)viewDidLoad {
     [super viewDidLoad];

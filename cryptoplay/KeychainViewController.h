@@ -1,5 +1,5 @@
 //
-//  SecondViewController.h
+//  KeychainViewController.h
 //  cryptoplay
 //
 //  Created by Philipp Maluta on 11.11.16.
@@ -8,8 +8,6 @@
 
 #import <UIKit/UIKit.h>
 
-@interface SecondViewController : UIViewController
-
+@interface KeychainViewController : UIViewController
 
 @end
-
