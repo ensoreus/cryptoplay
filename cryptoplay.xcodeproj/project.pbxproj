@@ -15,6 +15,8 @@
 		283F32BD1DD5DDC500359AE5 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 283F32BC1DD5DDC500359AE5 /* Assets.xcassets */; };
 		283F32C01DD5DDC500359AE5 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 283F32BE1DD5DDC500359AE5 /* LaunchScreen.storyboard */; };
 		283F32C91DD5E2E100359AE5 /* KeychainViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 283F32C81DD5E2E100359AE5 /* KeychainViewController.m */; };
+		283F331D1DD5FCB900359AE5 /* libcrypto.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 283F331B1DD5FCB900359AE5 /* libcrypto.a */; };
+		283F331E1DD5FCB900359AE5 /* libssl.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 283F331C1DD5FCB900359AE5 /* libssl.a */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -32,6 +34,8 @@
 		283F32C11DD5DDC500359AE5 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		283F32C71DD5E2E100359AE5 /* KeychainViewController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = KeychainViewController.h; sourceTree = "<group>"; };
 		283F32C81DD5E2E100359AE5 /* KeychainViewController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = KeychainViewController.m; sourceTree = "<group>"; };
+		283F331B1DD5FCB900359AE5 /* libcrypto.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libcrypto.a; path = "cryptoplay/iPhoneOS10.0-arm64.sdk/lib/libcrypto.a"; sourceTree = "<group>"; };
+		283F331C1DD5FCB900359AE5 /* libssl.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libssl.a; path = "cryptoplay/iPhoneOS10.0-arm64.sdk/lib/libssl.a"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -39,6 +43,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				283F331D1DD5FCB900359AE5 /* libcrypto.a in Frameworks */,
+				283F331E1DD5FCB900359AE5 /* libssl.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -50,6 +56,7 @@
 			children = (
 				283F32AC1DD5DDC500359AE5 /* cryptoplay */,
 				283F32AB1DD5DDC500359AE5 /* Products */,
+				283F331A1DD5FCB900359AE5 /* Frameworks */,
 			);
 			sourceTree = "<group>";
 		};
@@ -87,6 +94,15 @@
 				283F32AE1DD5DDC500359AE5 /* main.m */,
 			);
 			name = "Supporting Files";
+			sourceTree = "<group>";
+		};
+		283F331A1DD5FCB900359AE5 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				283F331B1DD5FCB900359AE5 /* libcrypto.a */,
+				283F331C1DD5FCB900359AE5 /* libssl.a */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -286,8 +302,13 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				DEVELOPMENT_TEAM = 3X9U9TX5E6;
+				HEADER_SEARCH_PATHS = "$(PROJECT_DIR)/cryptoplay/iPhoneOS10.0-$(CURRENT_ARCH).sdk/include";
 				INFOPLIST_FILE = cryptoplay/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/cryptoplay/iPhoneOS10.0-$(CURRENT_ARCH).sdk/lib",
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.ensoreus.cryptoplay;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
@@ -298,8 +319,13 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				DEVELOPMENT_TEAM = 3X9U9TX5E6;
+				HEADER_SEARCH_PATHS = "$(PROJECT_DIR)/cryptoplay/iPhoneOS10.0-$(CURRENT_ARCH).sdk/include";
 				INFOPLIST_FILE = cryptoplay/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/cryptoplay/iPhoneOS10.0-$(CURRENT_ARCH).sdk/lib",
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.ensoreus.cryptoplay;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
