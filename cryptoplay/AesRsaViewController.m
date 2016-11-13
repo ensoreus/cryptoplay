@@ -36,7 +36,8 @@ int envelope_open(EVP_PKEY *priv_key, unsigned char *ciphertext, int ciphertext_
     unsigned char* iv;
     unsigned char* ekey;
     int ekeyLength;
-    
+    unsigned char* encryptedText;
+    int encryptedTextLength;
 }
 
 - (instancetype)init
@@ -55,7 +56,9 @@ int envelope_open(EVP_PKEY *priv_key, unsigned char *ciphertext, int ciphertext_
 - (void)viewDidLoad {
     [super viewDidLoad];
     self.generatedLine.text = [self generateString];
-    [self sealEnvelope:self.generatedLine.text];
+    EVP_PKEY* key_pair = [self generateRsaKeyPair];
+    [self sealEnvelope:self.generatedLine.text keyPair:key_pair];
+    [self decryptString:self.encryptedLine.text keyPair:key_pair initVector:iv];
 }
 
 - (void)didReceiveMemoryWarning {
@@ -75,8 +78,8 @@ int envelope_open(EVP_PKEY *priv_key, unsigned char *ciphertext, int ciphertext_
     ERR_free_strings();
 }
 
-- (void) sealEnvelope:(NSString*)str{
-    EVP_PKEY* key_pair = [self generateRsaKeyPair];
+- (void) sealEnvelope:(NSString*)str keyPair:(EVP_PKEY*)key_pair{
+    
     unsigned char* encrypted_key =  malloc(EVP_PKEY_size(key_pair));
     int encryptedKeySize = 0;
     iv = malloc(256);
@@ -85,6 +88,8 @@ int envelope_open(EVP_PKEY *priv_key, unsigned char *ciphertext, int ciphertext_
     strncpy((char*)cStr, [str cStringUsingEncoding:NSASCIIStringEncoding], str.length);
     
     int decrLength = envelope_seal(&key_pair, cStr, (int)str.length, &encrypted_key, &encryptedKeySize, iv, cipherText);
+    encryptedText = cipherText;
+    encryptedTextLength = decrLength;
     NSMutableString* resStr = [NSMutableString stringWithCapacity:decrLength];
     for (int i = 0; i < decrLength; i++) {
         [resStr appendFormat:@"%02x", cipherText[i]];
@@ -93,7 +98,25 @@ int envelope_open(EVP_PKEY *priv_key, unsigned char *ciphertext, int ciphertext_
     ekey = encrypted_key;
     [self storeKeys:key_pair initVector:iv];
     self.encryptedLine.text = resStr;
-    //[self decryptString:resStr keyPair:key_pair initVector:iv];
+    
+}
+
+- (void) decryptString:(NSString*)str keyPair:(EVP_PKEY*)keyPair initVector:(unsigned char*)initVector{
+    EVP_PKEY* privateKey = EVP_PKEY_new();
+    int pkeyLen;
+    unsigned char *ucBuf, *uctempBuf;
+    pkeyLen = i2d_PrivateKey(keyPair, NULL);
+    ucBuf = (unsigned char *)malloc(pkeyLen+1);
+    uctempBuf = ucBuf;
+    i2d_PrivateKey(keyPair, &uctempBuf);
+    EVP_PKEY_assign(privateKey, EVP_PKEY_RSA, ucBuf);
+    
+    unsigned char cStr[BUFSIZE];
+    strncpy((char*)cStr, [str cStringUsingEncoding:NSASCIIStringEncoding], str.length);
+    unsigned char *decrypted = malloc(2048);
+    int decrlen = envelope_open(keyPair, encryptedText, encryptedTextLength, ekey, ekeyLength, initVector, decrypted);
+    NSString* strDec = [NSString stringWithCString:decrypted encoding:NSASCIIStringEncoding];
+    self.decryptedLine.text = strDec;
 }
 
 - (NSString*) generateString {
@@ -133,6 +156,7 @@ int envelope_open(EVP_PKEY *priv_key, unsigned char *ciphertext, int ciphertext_
     return key;
 }
 
+// Task #2
 - (void) storeKeys:(EVP_PKEY*)keyPair initVector:(unsigned char*)iv{
     NSData* secKeyData = [self extractPrivateKeyData:keyPair];
     CFErrorRef error = NULL;
@@ -218,22 +242,7 @@ int envelope_open(EVP_PKEY *priv_key, unsigned char *ciphertext, int ciphertext_
     return dPubKey;
 }
 
-- (void) decryptString:(NSString*)str keyPair:(EVP_PKEY*)keyPair initVector:(unsigned char*)initVector{
-    EVP_PKEY* privateKey = EVP_PKEY_new();
-    int pkeyLen;
-    unsigned char *ucBuf, *uctempBuf;
-    pkeyLen = i2d_PrivateKey(keyPair, NULL);
-    ucBuf = (unsigned char *)malloc(pkeyLen+1);
-    uctempBuf = ucBuf;
-    i2d_PrivateKey(keyPair, &uctempBuf);
-    EVP_PKEY_assign(privateKey, EVP_PKEY_RSA, ucBuf);
-    
-    unsigned char cStr[BUFSIZE];
-    strncpy((char*)cStr, [str cStringUsingEncoding:NSASCIIStringEncoding], str.length);
-    unsigned char decrypted[BUFSIZE];
-    int decrlen = envelope_open(privateKey, cStr, str.length, ekey, ekeyLength, initVector, &decrypted);
-    NSLog(@"%s", decrypted);
-}
+
 
 @end
 
