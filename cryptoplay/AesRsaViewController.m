@@ -15,6 +15,10 @@
 #include <openssl/rsa.h>
 #include <openssl/bn.h>
 
+int envelope_seal(EVP_PKEY **pub_key, unsigned char *plaintext, int plaintext_len,
+                  unsigned char **encrypted_key, int *encrypted_key_len, unsigned char *iv,
+                  unsigned char *ciphertext);
+
 @interface AesRsaViewController ()
 @property(nonatomic, weak) IBOutlet UILabel* generatedLine;
 @property(nonatomic, weak) IBOutlet UITextField* inputString;
@@ -34,28 +38,14 @@
 }
 - (void) viewDidAppear:(BOOL)animated{
     [super viewDidAppear:animated];
-    ERR_load_crypto_strings();
-    OpenSSL_add_all_algorithms();
-    OPENSSL_config(NULL);
-    
-    if((pubKey = [self generateRsaKeyPair]) == NULL){
-        self.encryptedLine.text = @"Key not generated";
-    }else{
-        NSString* strToEncrypt = [self generateString];
-        NSString* iv = [self generateIV];
-        unsigned char* cEncryptedStr = calloc(2048, 1);
-        [self encrypt:[self.generatedLine.text cStringUsingEncoding:NSASCIIStringEncoding] plaintext_len:self.generatedLine.text.length key:pubKey iv:[iv cStringUsingEncoding:NSASCIIStringEncoding] ciphertext:cEncryptedStr];
-        NSString* encryptedStr = [NSString stringWithCString:cEncryptedStr encoding:NSASCIIStringEncoding];
-        self.encryptedLine.text = encryptedStr;
-        self.generatedLine.text = strToEncrypt;
-    }
+    [self initCrypto];
+    self.generatedLine.text = [self generateString];
+    [self sealEnvelope:self.generatedLine.text];
 }
 
 - (void) viewDidDisappear:(BOOL)animated{
     [super viewDidDisappear:animated];
-    EVP_cleanup();
-    CRYPTO_cleanup_all_ex_data();
-    ERR_free_strings();
+    [self freeCrypto];
 }
 
 - (void)didReceiveMemoryWarning {
@@ -63,6 +53,31 @@
     // Dispose of any resources that can be recreated.
 }
 
+- (void) initCrypto{
+    ERR_load_crypto_strings();
+    OpenSSL_add_all_algorithms();
+    OPENSSL_config(NULL);
+}
+
+- (void) freeCrypto{
+    EVP_cleanup();
+    CRYPTO_cleanup_all_ex_data();
+    ERR_free_strings();
+}
+
+- (void) sealEnvelope:(NSString*)str{
+    EVP_PKEY* pub_key[1];
+    pub_key[0] = [self generateRsaKeyPair];
+    unsigned char* encrypted_key[1];
+    encrypted_key[0] = malloc(EVP_PKEY_size(pubKey));
+    int encryptedKeySize = 0;
+    unsigned char* iv = malloc(2048);
+    unsigned short* cipherText = malloc(2048);
+    cipherText = "\0";
+    unsigned char* cStr = [str cStringUsingEncoding:NSUTF8StringEncoding];
+    envelope_seal(pub_key, cStr, (int)str.length, encrypted_key, &encryptedKeySize, iv, cipherText);
+    self.encryptedLine.text = [NSString stringWithCString:cipherText encoding:NSUTF8StringEncoding];
+}
 
 - (NSString*) generateString {
     return [[NSUUID UUID] UUIDString];
@@ -101,44 +116,50 @@
     return key;
 }
 
-- (int) encrypt:(unsigned char *)plaintext plaintext_len:(int)plaintext_len key:(unsigned char *)key iv:(unsigned char *)iv ciphertext:(unsigned char *)ciphertext
+@end
+
+int envelope_seal(EVP_PKEY **pub_key, unsigned char *plaintext, int plaintext_len,
+                  unsigned char **encrypted_key, int *encrypted_key_len, unsigned char *iv,
+                  unsigned char *ciphertext)
 {
     EVP_CIPHER_CTX *ctx;
     
-    int len;
-    
     int ciphertext_len;
     
+    int len;
+    
     /* Create and initialise the context */
-    if(!(ctx = EVP_CIPHER_CTX_new())) {
-        NSLog(@"error init context");
+    if(!(ctx = EVP_CIPHER_CTX_new())){
+        ERR_print_errors_fp(stderr);
+        return 0;
     }
     
-    /* Initialise the encryption operation. IMPORTANT - ensure you use a key
-     * and IV size appropriate for your cipher
-     * In this example we are using 256 bit AES (i.e. a 256 bit key). The
-     * IV size for *most* modes is the same as the block size. For AES this
-     * is 128 bits */
-    if(1 != EVP_EncryptInit_ex(ctx, EVP_aes_256_cbc(), NULL, key, iv))
-    {
-        NSLog(@"error init encryption");
+    /* Initialise the envelope seal operation. This operation generates
+     * a key for the provided cipher, and then encrypts that key a number
+     * of times (one for each public key provided in the pub_key array). In
+     * this example the array size is just one. This operation also
+     * generates an IV and places it in iv. */
+    if(1 != EVP_SealInit(ctx, EVP_aes_256_cbc(), encrypted_key, encrypted_key_len, iv, pub_key, 1)){
+        ERR_print_errors_fp(stderr);
+        return 0;
     }
     
     /* Provide the message to be encrypted, and obtain the encrypted output.
-     * EVP_EncryptUpdate can be called multiple times if necessary
+     * EVP_SealUpdate can be called multiple times if necessary
      */
-    if(1 != EVP_EncryptUpdate(ctx, ciphertext, &len, plaintext, plaintext_len))
-    {
-        NSLog(@"error encrypt");
+    if(1 != EVP_SealUpdate(ctx, ciphertext, &len, plaintext, plaintext_len)){
+        ERR_print_errors_fp(stderr);
+        return 0;
     }
     ciphertext_len = len;
     
     /* Finalise the encryption. Further ciphertext bytes may be written at
      * this stage.
      */
-    if(1 != EVP_EncryptFinal_ex(ctx, ciphertext + len, &len)) {
-        NSLog(@"error encrypt final");
-    }
+    if(1 != EVP_SealFinal(ctx, ciphertext + len, &len)) {
+        ERR_print_errors_fp(stderr);
+        return 0;
+    };
     ciphertext_len += len;
     
     /* Clean up */
@@ -146,16 +167,3 @@
     
     return ciphertext_len;
 }
-
-- (NSString*) generateIV{
-    NSString *alphabet  = @"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXZY0123456789";
-    NSMutableString *s = [NSMutableString stringWithCapacity:20];
-    for (NSUInteger i = 0U; i < 20; i++) {
-        u_int32_t r = arc4random() % [alphabet length];
-        unichar c = [alphabet characterAtIndex:r];
-        [s appendFormat:@"%C", c];
-    }
-    return [s copy];
-}
-
-@end
