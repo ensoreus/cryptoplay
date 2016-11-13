@@ -36,6 +36,7 @@
 		283F32C81DD5E2E100359AE5 /* KeychainViewController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = KeychainViewController.m; sourceTree = "<group>"; };
 		283F331B1DD5FCB900359AE5 /* libcrypto.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libcrypto.a; path = "cryptoplay/iPhoneOS10.0-arm64.sdk/lib/libcrypto.a"; sourceTree = "<group>"; };
 		283F331C1DD5FCB900359AE5 /* libssl.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libssl.a; path = "cryptoplay/iPhoneOS10.0-arm64.sdk/lib/libssl.a"; sourceTree = "<group>"; };
+		283F331F1DD8F53900359AE5 /* cryptoplay.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = cryptoplay.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -71,6 +72,7 @@
 		283F32AC1DD5DDC500359AE5 /* cryptoplay */ = {
 			isa = PBXGroup;
 			children = (
+				283F331F1DD8F53900359AE5 /* cryptoplay.entitlements */,
 				283F32B01DD5DDC500359AE5 /* AppDelegate.h */,
 				283F32B11DD5DDC500359AE5 /* AppDelegate.m */,
 				283F32B31DD5DDC500359AE5 /* AesRsaViewController.h */,
@@ -138,6 +140,11 @@
 						CreatedOnToolsVersion = 8.0;
 						DevelopmentTeam = 3X9U9TX5E6;
 						ProvisioningStyle = Automatic;
+						SystemCapabilities = {
+							com.apple.Keychain = {
+								enabled = 1;
+							};
+						};
 					};
 				};
 			};
@@ -301,6 +308,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = cryptoplay/cryptoplay.entitlements;
 				DEVELOPMENT_TEAM = 3X9U9TX5E6;
 				HEADER_SEARCH_PATHS = "$(PROJECT_DIR)/cryptoplay/iPhoneOS10.0-$(CURRENT_ARCH).sdk/include";
 				INFOPLIST_FILE = cryptoplay/Info.plist;
@@ -318,6 +326,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = cryptoplay/cryptoplay.entitlements;
 				DEVELOPMENT_TEAM = 3X9U9TX5E6;
 				HEADER_SEARCH_PATHS = "$(PROJECT_DIR)/cryptoplay/iPhoneOS10.0-$(CURRENT_ARCH).sdk/include";
 				INFOPLIST_FILE = cryptoplay/Info.plist;

@@ -7,6 +7,7 @@
 //
 
 #import "AesRsaViewController.h"
+@import Security;
 
 #include <openssl/conf.h>
 #include <openssl/evp.h>
@@ -27,25 +28,25 @@ int envelope_seal(EVP_PKEY **pub_key, unsigned char *plaintext, int plaintext_le
 
 @implementation AesRsaViewController{
     EVP_PKEY_CTX * kctx;
-    EVP_PKEY* pubKey;
+}
+
+- (instancetype)init
+{
+    self = [super init];
+    if (self) {
+        [self initCrypto];
+    }
+    return self;
+}
+
+- (void) dealloc{
+    [self freeCrypto];
 }
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    
-    // Do any additional setup after loading the view, typically from a nib.
-    
-}
-- (void) viewDidAppear:(BOOL)animated{
-    [super viewDidAppear:animated];
-    [self initCrypto];
     self.generatedLine.text = [self generateString];
     [self sealEnvelope:self.generatedLine.text];
-}
-
-- (void) viewDidDisappear:(BOOL)animated{
-    [super viewDidDisappear:animated];
-    [self freeCrypto];
 }
 
 - (void)didReceiveMemoryWarning {
@@ -79,9 +80,8 @@ int envelope_seal(EVP_PKEY **pub_key, unsigned char *plaintext, int plaintext_le
     for (int i = 0; i < decrLength; i++) {
         [resStr appendFormat:@"%02x", cipherText[i]];
     }
-    
+    [self storeKeys:pub_key initVector:iv];
     self.encryptedLine.text = resStr;
-    
 }
 
 - (NSString*) generateString {
@@ -119,6 +119,82 @@ int envelope_seal(EVP_PKEY **pub_key, unsigned char *plaintext, int plaintext_le
         return NULL;
     }
     return key;
+}
+
+- (void) storeKeys:(EVP_PKEY*)keyPair initVector:(unsigned char*)iv{
+//    NSString* pubKey = [self extractPublicKey:keyPair];
+//    NSString* secKey = [self extractPrivateKey:keyPair];
+    
+   // CFDataRef pubKeyData = (__bridge CFDataRef)([self extractPublicKeyData:keyPair]);
+    NSData* secKeyData = [self extractPrivateKeyData:keyPair];
+    CFErrorRef error = NULL;
+    SecAccessControlRef acl = SecAccessControlCreateWithFlags(kCFAllocatorDefault, kSecAttrAccessibleAfterFirstUnlock, kNilOptions, &error);
+    NSDictionary * attributes = @{
+                                  (id)kSecUseItemList: @[secKeyData],
+                                  (id)kSecClass: (id)kSecClassKey,
+                                  (id)kSecAttrKeyClass: (id)kSecAttrKeyClassPrivate,
+                                  (id)kSecAttrAccessControl: (__bridge id)acl};
+    CFTypeRef result = NULL;
+    OSStatus status = SecItemAdd((CFDictionaryRef)attributes, &result);
+    if (status != errSecSuccess) {
+        NSLog(@"Error!!!");
+    }
+}
+
+- (NSString*) extractPublicKey:(EVP_PKEY*)keyPair{
+    int pkeyLen;
+    unsigned char *ucBuf, *uctempBuf;
+    pkeyLen = i2d_PublicKey(keyPair, NULL);
+    ucBuf = (unsigned char *)malloc(pkeyLen+1);
+    uctempBuf = ucBuf;
+    i2d_PublicKey(keyPair, &uctempBuf);
+    NSMutableString* strPubKey = [NSMutableString stringWithCapacity:pkeyLen];
+    for (int i = 0; i < pkeyLen; i++) {
+        [strPubKey appendFormat:@"%02x", ucBuf[i]];
+    }
+    free(ucBuf);
+    return [strPubKey copy];
+}
+
+- (NSString*) extractPrivateKey:(EVP_PKEY*)keyPair{
+    int pkeyLen;
+    unsigned char *ucBuf, *uctempBuf;
+    pkeyLen = i2d_PrivateKey(keyPair, NULL);
+    ucBuf = (unsigned char *)malloc(pkeyLen+1);
+    uctempBuf = ucBuf;
+    i2d_PrivateKey(keyPair, &uctempBuf);
+    NSMutableString* strPubKey = [NSMutableString stringWithCapacity:pkeyLen];
+    for (int i = 0; i < pkeyLen; i++) {
+        [strPubKey appendFormat:@"%02x", ucBuf[i]];
+    }
+    free(ucBuf);
+    return [strPubKey copy];
+}
+
+- (NSData*) extractPublicKeyData:(EVP_PKEY*) keyPair{
+    int pkeyLen;
+    unsigned char *ucBuf, *uctempBuf;
+    pkeyLen = i2d_PublicKey(keyPair, NULL);
+    ucBuf = (unsigned char *)malloc(pkeyLen+1);
+    uctempBuf = ucBuf;
+    i2d_PublicKey(keyPair, &uctempBuf);
+    NSMutableData* dPubKey = [NSMutableData dataWithCapacity:pkeyLen];
+    [dPubKey appendBytes:ucBuf length:pkeyLen];
+    free(ucBuf);
+    return dPubKey;
+}
+
+- (NSData*) extractPrivateKeyData:(EVP_PKEY*) keyPair{
+    int pkeyLen;
+    unsigned char *ucBuf, *uctempBuf;
+    pkeyLen = i2d_PrivateKey(keyPair, NULL);
+    ucBuf = (unsigned char *)malloc(pkeyLen+1);
+    uctempBuf = ucBuf;
+    i2d_PrivateKey(keyPair, &uctempBuf);
+    NSMutableData* dPubKey = [NSMutableData dataWithCapacity:pkeyLen];
+    [dPubKey appendBytes:ucBuf length:pkeyLen];
+    free(ucBuf);
+    return dPubKey;
 }
 
 @end
