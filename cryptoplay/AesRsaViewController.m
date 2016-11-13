@@ -14,20 +14,29 @@
 #include <openssl/err.h>
 #include <openssl/aes.h>
 #include <openssl/rsa.h>
-#include <openssl/bn.h>
+
+
 #define BUFSIZE 1024
 
 int envelope_seal(EVP_PKEY **pub_key, unsigned char *plaintext, int plaintext_len,
                   unsigned char **encrypted_key, int *encrypted_key_len, unsigned char *iv,
                   unsigned char *ciphertext);
+int envelope_open(EVP_PKEY *priv_key, unsigned char *ciphertext, int ciphertext_len,
+                  unsigned char *encrypted_key, int encrypted_key_len, unsigned char *iv,
+                  unsigned char *plaintext);
 
 @interface AesRsaViewController ()
 @property(nonatomic, weak) IBOutlet UILabel* generatedLine;
 @property(nonatomic, weak) IBOutlet UITextView* encryptedLine;
+@property(nonatomic, weak) IBOutlet UILabel* decryptedLine;
 @end
 
 @implementation AesRsaViewController{
     EVP_PKEY_CTX * kctx;
+    unsigned char* iv;
+    unsigned char* ekey;
+    int ekeyLength;
+    
 }
 
 - (instancetype)init
@@ -67,21 +76,24 @@ int envelope_seal(EVP_PKEY **pub_key, unsigned char *plaintext, int plaintext_le
 }
 
 - (void) sealEnvelope:(NSString*)str{
-    EVP_PKEY* pub_key = [self generateRsaKeyPair];
-    unsigned char* encrypted_key =  malloc(EVP_PKEY_size(pub_key));
+    EVP_PKEY* key_pair = [self generateRsaKeyPair];
+    unsigned char* encrypted_key =  malloc(EVP_PKEY_size(key_pair));
     int encryptedKeySize = 0;
-    unsigned char* iv = malloc(256);
+    iv = malloc(256);
     unsigned char* cipherText = malloc(2048);
     unsigned char cStr[BUFSIZE];
     strncpy((char*)cStr, [str cStringUsingEncoding:NSASCIIStringEncoding], str.length);
     
-    int decrLength = envelope_seal(&pub_key, cStr, (int)str.length, &encrypted_key, &encryptedKeySize, iv, cipherText);
+    int decrLength = envelope_seal(&key_pair, cStr, (int)str.length, &encrypted_key, &encryptedKeySize, iv, cipherText);
     NSMutableString* resStr = [NSMutableString stringWithCapacity:decrLength];
     for (int i = 0; i < decrLength; i++) {
         [resStr appendFormat:@"%02x", cipherText[i]];
     }
-    [self storeKeys:pub_key initVector:iv];
+    ekeyLength = encryptedKeySize;
+    ekey = encrypted_key;
+    [self storeKeys:key_pair initVector:iv];
     self.encryptedLine.text = resStr;
+    //[self decryptString:resStr keyPair:key_pair initVector:iv];
 }
 
 - (NSString*) generateString {
@@ -122,18 +134,27 @@ int envelope_seal(EVP_PKEY **pub_key, unsigned char *plaintext, int plaintext_le
 }
 
 - (void) storeKeys:(EVP_PKEY*)keyPair initVector:(unsigned char*)iv{
-//    NSString* pubKey = [self extractPublicKey:keyPair];
-//    NSString* secKey = [self extractPrivateKey:keyPair];
-    
-   // CFDataRef pubKeyData = (__bridge CFDataRef)([self extractPublicKeyData:keyPair]);
     NSData* secKeyData = [self extractPrivateKeyData:keyPair];
     CFErrorRef error = NULL;
     SecAccessControlRef acl = SecAccessControlCreateWithFlags(kCFAllocatorDefault, kSecAttrAccessibleAfterFirstUnlock, kNilOptions, &error);
+    SecAccessControlRef sacObject;
+    
+    sacObject = SecAccessControlCreateWithFlags(kCFAllocatorDefault,
+                                                kSecAttrAccessibleWhenPasscodeSetThisDeviceOnly,
+                                                kSecAccessControlTouchIDAny | kSecAccessControlPrivateKeyUsage, &error);
     NSDictionary * attributes = @{
                                   (id)kSecUseItemList: @[secKeyData],
                                   (id)kSecClass: (id)kSecClassKey,
+                                  (id)kSecAttrLabel:@"com.ensoreus.cryptoplay.skey",
                                   (id)kSecAttrKeyClass: (id)kSecAttrKeyClassPrivate,
-                                  (id)kSecAttrAccessControl: (__bridge id)acl};
+                                  (id)kSecAttrAccessControl: (__bridge id)acl,
+                                  (id)kSecAttrKeySizeInBits: @256,
+                                  (id)kSecPrivateKeyAttrs: @{
+                                          (id)kSecAttrAccessControl: (__bridge_transfer id)sacObject,
+                                          (id)kSecAttrIsPermanent: @YES,
+                                          },
+                                  (id)kSecAttrTokenID: (id)kSecAttrTokenIDSecureEnclave,
+                                  (id)kSecAttrIsPermanent: @YES};
     CFTypeRef result = NULL;
     OSStatus status = SecItemAdd((CFDictionaryRef)attributes, &result);
     if (status != errSecSuccess) {
@@ -197,6 +218,23 @@ int envelope_seal(EVP_PKEY **pub_key, unsigned char *plaintext, int plaintext_le
     return dPubKey;
 }
 
+- (void) decryptString:(NSString*)str keyPair:(EVP_PKEY*)keyPair initVector:(unsigned char*)initVector{
+    EVP_PKEY* privateKey = EVP_PKEY_new();
+    int pkeyLen;
+    unsigned char *ucBuf, *uctempBuf;
+    pkeyLen = i2d_PrivateKey(keyPair, NULL);
+    ucBuf = (unsigned char *)malloc(pkeyLen+1);
+    uctempBuf = ucBuf;
+    i2d_PrivateKey(keyPair, &uctempBuf);
+    EVP_PKEY_assign(privateKey, EVP_PKEY_RSA, ucBuf);
+    
+    unsigned char cStr[BUFSIZE];
+    strncpy((char*)cStr, [str cStringUsingEncoding:NSASCIIStringEncoding], str.length);
+    unsigned char decrypted[BUFSIZE];
+    int decrlen = envelope_open(privateKey, cStr, str.length, ekey, ekeyLength, initVector, &decrypted);
+    NSLog(@"%s", decrypted);
+}
+
 @end
 
 int envelope_seal(EVP_PKEY **pub_key, unsigned char *plaintext, int plaintext_len,
@@ -247,4 +285,57 @@ int envelope_seal(EVP_PKEY **pub_key, unsigned char *plaintext, int plaintext_le
     EVP_CIPHER_CTX_free(ctx);
     
     return ciphertext_len;
+}
+
+int envelope_open(EVP_PKEY *priv_key, unsigned char *ciphertext, int ciphertext_len,
+                  unsigned char *encrypted_key, int encrypted_key_len, unsigned char *iv,
+                  unsigned char *plaintext)
+{
+    EVP_CIPHER_CTX *ctx;
+    
+    int len;
+    
+    int plaintext_len;
+    
+    
+    /* Create and initialise the context */
+    if(!(ctx = EVP_CIPHER_CTX_new())){
+        ERR_print_errors_fp(stderr);
+        return 0;
+    }
+    
+    /* Initialise the decryption operation. The asymmetric private key is
+     * provided and priv_key, whilst the encrypted session key is held in
+     * encrypted_key */
+    if(1 != EVP_OpenInit(ctx, EVP_aes_256_cbc(), encrypted_key,
+                         encrypted_key_len, iv, priv_key))
+    {
+        ERR_print_errors_fp(stderr);
+        return 0;
+    }
+    
+    /* Provide the message to be decrypted, and obtain the plaintext output.
+     * EVP_OpenUpdate can be called multiple times if necessary
+     */
+    if(1 != EVP_OpenUpdate(ctx, plaintext, &len, ciphertext, ciphertext_len))
+    {
+        ERR_print_errors_fp(stderr);
+        return 0;
+    }
+    plaintext_len = len;
+    
+    /* Finalise the decryption. Further plaintext bytes may be written at
+     * this stage.
+     */
+    if(1 != EVP_OpenFinal(ctx, plaintext + len, &len)) {
+        ERR_print_errors_fp(stderr);
+        return 0;
+    }
+    
+    plaintext_len += len;
+    
+    /* Clean up */
+    EVP_CIPHER_CTX_free(ctx);
+    
+    return plaintext_len;
 }
