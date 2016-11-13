@@ -14,6 +14,7 @@
 #include <openssl/aes.h>
 #include <openssl/rsa.h>
 #include <openssl/bn.h>
+#define BUFSIZE 1024
 
 int envelope_seal(EVP_PKEY **pub_key, unsigned char *plaintext, int plaintext_len,
                   unsigned char **encrypted_key, int *encrypted_key_len, unsigned char *iv,
@@ -21,7 +22,6 @@ int envelope_seal(EVP_PKEY **pub_key, unsigned char *plaintext, int plaintext_le
 
 @interface AesRsaViewController ()
 @property(nonatomic, weak) IBOutlet UILabel* generatedLine;
-@property(nonatomic, weak) IBOutlet UITextField* inputString;
 @property(nonatomic, weak) IBOutlet UITextView* encryptedLine;
 @end
 
@@ -66,17 +66,22 @@ int envelope_seal(EVP_PKEY **pub_key, unsigned char *plaintext, int plaintext_le
 }
 
 - (void) sealEnvelope:(NSString*)str{
-    EVP_PKEY* pub_key[1];
-    pub_key[0] = [self generateRsaKeyPair];
-    unsigned char* encrypted_key[1];
-    encrypted_key[0] = malloc(EVP_PKEY_size(pubKey));
+    EVP_PKEY* pub_key = [self generateRsaKeyPair];
+    unsigned char* encrypted_key =  malloc(EVP_PKEY_size(pub_key));
     int encryptedKeySize = 0;
-    unsigned char* iv = malloc(2048);
-    unsigned short* cipherText = malloc(2048);
-    cipherText = "\0";
-    unsigned char* cStr = [str cStringUsingEncoding:NSUTF8StringEncoding];
-    envelope_seal(pub_key, cStr, (int)str.length, encrypted_key, &encryptedKeySize, iv, cipherText);
-    self.encryptedLine.text = [NSString stringWithCString:cipherText encoding:NSUTF8StringEncoding];
+    unsigned char* iv = malloc(256);
+    unsigned char* cipherText = malloc(2048);
+    unsigned char cStr[BUFSIZE];
+    strncpy((char*)cStr, [str cStringUsingEncoding:NSASCIIStringEncoding], str.length);
+    
+    int decrLength = envelope_seal(&pub_key, cStr, (int)str.length, &encrypted_key, &encryptedKeySize, iv, cipherText);
+    NSMutableString* resStr = [NSMutableString stringWithCapacity:decrLength];
+    for (int i = 0; i < decrLength; i++) {
+        [resStr appendFormat:@"%02x", cipherText[i]];
+    }
+    
+    self.encryptedLine.text = resStr;
+    
 }
 
 - (NSString*) generateString {
